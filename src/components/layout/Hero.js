@@ -1,35 +1,72 @@
-import Right from "@/components/icons/Right";
-import Image from "next/image";
+'use client';
+import {SessionProvider} from "next-auth/react";
+import {createContext, useEffect, useState} from "react";
+import toast from "react-hot-toast";
 
-export default function Hero() {
+export const CartContext = createContext({});
+
+export function cartProductPrice(cartProduct) {
+  let price = cartProduct.basePrice;
+  if (cartProduct.size) {
+    price += cartProduct.size.price;
+  }
+  if (cartProduct.extras?.length > 0) {
+    for (const extra of cartProduct.extras) {
+      price += extra.price;
+    }
+  }
+  return price;
+}
+
+export function AppProvider({children}) {
+  const [cartProducts,setCartProducts] = useState([]);
+
+  const ls = typeof window !== 'undefined' ? window.localStorage : null;
+
+  useEffect(() => {
+    if (ls && ls.getItem('cart')) {
+      setCartProducts( JSON.parse( ls.getItem('cart') ) );
+    }
+  }, []);
+
+  function clearCart() {
+    setCartProducts([]);
+    saveCartProductsToLocalStorage([]);
+  }
+
+  function removeCartProduct(indexToRemove) {
+    setCartProducts(prevCartProducts => {
+      const newCartProducts = prevCartProducts
+        .filter((v,index) => index !== indexToRemove);
+      saveCartProductsToLocalStorage(newCartProducts);
+      return newCartProducts;
+    });
+    toast.success('Product removed');
+  }
+
+  function saveCartProductsToLocalStorage(cartProducts) {
+    if (ls) {
+      ls.setItem('cart', JSON.stringify(cartProducts));
+    }
+  }
+
+  function addToCart(product, size=null, extras=[]) {
+    setCartProducts(prevProducts => {
+      const cartProduct = {...product, size, extras};
+      const newProducts = [...prevProducts, cartProduct];
+      saveCartProductsToLocalStorage(newProducts);
+      return newProducts;
+    });
+  }
+
   return (
-    <section className="hero md:mt-4">
-      <div className="py-8 md:py-12">
-        <h1 className="text-4xl font-semibold">
-          Everything<br />
-          is better<br />
-          with a&nbsp;
-          <span className="text-primary">
-            Pizza
-          </span>
-        </h1>
-        <p className="my-6 text-gray-500 text-sm">
-          Pizza is the missing piece that makes every day complete, a simple yet delicious joy in life
-        </p>
-        <div className="flex gap-4 text-sm">
-          <button className="flex justify-center bg-primary uppercase flex items-center gap-2 text-white px-4 py-2 rounded-full">
-            Order now
-            <Right />
-          </button>
-          <button className="flex items-center border-0 gap-2 py-2 text-gray-600 font-semibold">
-            Learn more
-            <Right />
-          </button>
-        </div>
-      </div>
-      <div className="relative hidden md:block">
-        <Image src={'/pizza.png'} layout={'fill'} objectFit={'contain'} alt={'pizza'} />
-      </div>
-    </section>
+    <SessionProvider>
+      <CartContext.Provider value={{
+        cartProducts, setCartProducts,
+        addToCart, removeCartProduct, clearCart,
+      }}>
+        {children}
+      </CartContext.Provider>
+    </SessionProvider>
   );
 }
